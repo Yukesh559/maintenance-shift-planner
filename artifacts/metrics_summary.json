@@ -26,7 +26,11 @@
     "tn": 1424,
     "fp": 25,
     "fn": 3,
-    "tp": 48
+    "tp": 48,
+    "selected_threshold": 0.74,
+    "recall_at_selected_threshold": 0.8627,
+    "precision_at_selected_threshold": 0.9778,
+    "f1_at_selected_threshold": 0.9167
   },
   "failure_mode_metrics": {
     "TWF": {
@@ -49,5 +53,45 @@
       "support": 1,
       "pr_auc": 0.0116
     }
+  },
+  "selected_threshold_metrics": {
+    "threshold": 0.74,
+    "recall": 0.8627,
+    "precision": 0.9778,
+    "f1": 0.9167,
+    "confusion_matrix": [
+      [
+        1448,
+        1
+      ],
+      [
+        7,
+        44
+      ]
+    ],
+    "tn": 1448,
+    "fp": 1,
+    "fn": 7,
+    "tp": 44
+  },
+  "baseline_threshold_metrics": {
+    "threshold": 0.5,
+    "recall": 0.9412,
+    "precision": 0.6575,
+    "f1": 0.7742,
+    "confusion_matrix": [
+      [
+        1424,
+        25
+      ],
+      [
+        3,
+        48
+      ]
+    ],
+    "tn": 1424,
+    "fp": 25,
+    "fn": 3,
+    "tp": 48
   }
 }

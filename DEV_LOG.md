@@ -107,3 +107,20 @@ This development log tracks genuine chronological milestones, technical decision
   - Tab 4: Model Evaluation & Governance displaying held-out test metrics, confusion matrix, and synthetic digital twin disclosures.
 - **Verification:**
   - Streamlit application launched locally on port 8501 and returned HTTP 200 OK.
+
+---
+
+### Milestone 9: Evaluation Threshold Alignment & Test Set Verification
+- **Timestamp:** 2026-10-22 02:18 IST
+- **Files Modified:** `src/model.py`, `app.py`, `tests/test_core.py`, `artifacts/metrics_summary.json`, `README.md`
+- **Audit Findings:**
+  - Threshold selection strictly uses validation data (`y_val` and `val_probs`), finding $\tau^* = 0.74$ under default cost model ($C_{FN}=\$1000, C_{FP}=\$100, C_{TP}=\$150$).
+  - However, the Model Evaluation page initially reported only static metrics at baseline threshold $\tau = 0.50$ (Recall 94.12%, Precision 65.75%).
+- **Resolution (Without Unnecessary Retraining):**
+  - Added `evaluate_test_split_at_threshold()` to `src/model.py` to evaluate held-out test predictions at both the validation-selected threshold ($\tau^*$) and the baseline threshold ($\tau = 0.50$).
+  - Updated `app.py` Tab 4 to dynamically compute and display side-by-side held-out test metrics and confusion matrices for both policies.
+  - At $\tau^* = 0.74$: Test False Positives dropped from 25 to 1 (96% reduction in false alarms), Precision jumped from 65.75% to 97.78%, F1 rose from 0.7742 to 0.9167, while maintaining 86.27% recall.
+  - Preserved standard 0.50 baseline metrics side-by-side for transparent benchmark comparison.
+  - Added unit test #11 `test_held_out_metrics_at_selected_and_baseline_thresholds` in `tests/test_core.py`.
+  - All 11 tests passed successfully in 2.61s.
+

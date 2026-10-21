@@ -560,7 +560,7 @@ with tabs[2]:
 # ==============================================================================
 with tabs[3]:
     st.subheader("Requirement Governance — Held-Out Test Evaluation & Disclosures")
-    st.markdown("All performance numbers below are evaluated strictly on the **held-out test split (15% = 1,500 samples)**, which remained untouched during model fitting and validation threshold tuning.")
+    st.markdown("All performance numbers below are evaluated strictly on the **held-out test split (15% = 1,500 samples)**, which remained completely untouched during model fitting and validation threshold tuning.")
 
     # Load metrics from file or computed
     metrics_summary = model_suite.metrics_summary
@@ -568,48 +568,119 @@ with tabs[3]:
         with open(METRICS_FILE, "r") as f:
             metrics_summary = json.load(f)
 
-    held_out = metrics_summary.get("held_out_test_metrics", {})
+    active_tau = float(st.session_state.active_threshold)
+    test_eval = model_suite.evaluate_test_split_at_threshold(
+        splits["y_test"],
+        test_probs,
+        selected_threshold=active_tau,
+        baseline_threshold=0.50
+    )
+    opt_test = test_eval["selected_threshold_metrics"]
+    base_test = test_eval["baseline_threshold_metrics"]
 
-    # Held-Out Metrics Cards
+    # Compute financial costs on held-out test set for full comparison
+    c_fn = float(st.session_state.cost_fn)
+    c_fp = float(st.session_state.cost_fp)
+    c_tp = float(st.session_state.cost_tp)
+    test_cost_opt = opt_test["fn"] * c_fn + opt_test["fp"] * c_fp + opt_test["tp"] * c_tp
+    test_cost_base = base_test["fn"] * c_fn + base_test["fp"] * c_fp + base_test["tp"] * c_tp
+
+    # Top KPI Metrics Cards
     eval_c1, eval_c2, eval_c3, eval_c4, eval_c5 = st.columns(5)
     with eval_c1:
-        st.metric("Test PR-AUC", f"{held_out.get('pr_auc', 0.9487):.4f}")
+        st.metric("Test PR-AUC", f"{test_eval['pr_auc']:.4f}")
         st.caption("Primary metric for severe 3.4% imbalance.")
     with eval_c2:
-        st.metric("Test ROC-AUC", f"{held_out.get('roc_auc', 0.9860):.4f}")
+        st.metric("Test ROC-AUC", f"{test_eval['roc_auc']:.4f}")
+        st.caption("Threshold-independent separability.")
     with eval_c3:
-        st.metric("Recall at Threshold", f"{held_out.get('recall_at_threshold', 0.9412)*100:.1f}%")
-        st.caption(f"Evaluated at τ={held_out.get('eval_threshold', 0.50):.2f}")
+        st.metric(
+            f"Recall (at τ*={active_tau:.2f})",
+            f"{opt_test['recall']*100:.1f}%",
+            delta=f"{opt_test['recall'] - base_test['recall']:+.1%} vs τ=0.50",
+            delta_color="normal"
+        )
+        st.caption(f"Captured {opt_test['tp']} of 51 true test failures.")
     with eval_c4:
-        st.metric("Precision at Threshold", f"{held_out.get('precision_at_threshold', 0.6575)*100:.1f}%")
+        st.metric(
+            f"Precision (at τ*={active_tau:.2f})",
+            f"{opt_test['precision']*100:.1f}%",
+            delta=f"{opt_test['precision'] - base_test['precision']:+.1%} vs τ=0.50",
+            delta_color="normal"
+        )
+        st.caption(f"Only {opt_test['fp']} false alarm(s) vs {base_test['fp']} at τ=0.50.")
     with eval_c5:
-        st.metric("F1-Score at Threshold", f"{held_out.get('f1_at_threshold', 0.7742):.4f}")
+        st.metric(
+            f"F1-Score (at τ*={active_tau:.2f})",
+            f"{opt_test['f1']:.4f}",
+            delta=f"{opt_test['f1'] - base_test['f1']:+.4f} vs τ=0.50",
+            delta_color="normal"
+        )
+        st.caption("Harmonic balance of precision and recall.")
 
-    # Confusion Matrix Visualization
-    st.markdown("#### Held-Out Test Confusion Matrix (N = 1,500)")
-    cm_c1, cm_c2 = st.columns([1, 1.5])
-    
-    with cm_c1:
-        cm_data = held_out.get("confusion_matrix", [[1424, 25], [3, 48]])
-        cm_df = pd.DataFrame(
-            cm_data,
+    # Side-by-Side Held-Out Policy Comparison
+    st.markdown("#### ⚖️ Held-Out Test Split Comparison: Cost-Optimal (τ*) vs. Default Baseline (τ=0.50)")
+    comp_test_df = pd.DataFrame([
+        {
+            "Policy": f"Cost-Optimal Alert Threshold (τ*={active_tau:.2f}, Validation Tuned)",
+            "Decision Threshold": f"{active_tau:.2f}",
+            "Test Recall": f"{opt_test['recall']*100:.1f}%",
+            "Test Precision": f"{opt_test['precision']*100:.1f}%",
+            "Test F1-Score": f"{opt_test['f1']:.4f}",
+            "False Alarms (FP)": opt_test["fp"],
+            "Missed Failures (FN)": opt_test["fn"],
+            "True Alerts (TP)": opt_test["tp"],
+            "True Nominal (TN)": opt_test["tn"],
+            "Total Test Cost ($)": f"${test_cost_opt:,.0f}"
+        },
+        {
+            "Policy": "Default Standard Baseline (τ=0.50)",
+            "Decision Threshold": "0.50",
+            "Test Recall": f"{base_test['recall']*100:.1f}%",
+            "Test Precision": f"{base_test['precision']*100:.1f}%",
+            "Test F1-Score": f"{base_test['f1']:.4f}",
+            "False Alarms (FP)": base_test["fp"],
+            "Missed Failures (FN)": base_test["fn"],
+            "True Alerts (TP)": base_test["tp"],
+            "True Nominal (TN)": base_test["tn"],
+            "Total Test Cost ($)": f"${test_cost_base:,.0f}"
+        }
+    ])
+    st.dataframe(comp_test_df, hide_index=True, use_container_width=True)
+
+    # Side-by-Side Confusion Matrices
+    st.markdown("#### Held-Out Confusion Matrices (N = 1,500 Test Samples)")
+    cm_col1, cm_col2 = st.columns(2)
+
+    with cm_col1:
+        st.markdown(f"**Selected Cost-Optimal Threshold (τ* = {active_tau:.2f})**")
+        cm_opt_df = pd.DataFrame(
+            opt_test["confusion_matrix"],
             index=["Actual Operational (0)", "Actual Failure (1)"],
             columns=["Predicted Operational (0)", "Predicted Alert (1)"]
         )
-        st.table(cm_df)
-        st.caption(f"True Positives: {held_out.get('tp', 48)} | False Positives: {held_out.get('fp', 25)} | False Negatives: {held_out.get('fn', 3)} | True Negatives: {held_out.get('tn', 1424)}")
+        st.table(cm_opt_df)
+        st.caption(f"TP: {opt_test['tp']} | FP: {opt_test['fp']} (slashed to {opt_test['fp']}) | FN: {opt_test['fn']} | TN: {opt_test['tn']}")
 
-    with cm_c2:
-        st.markdown("**Evaluation Methodology:**")
-        st.markdown(
-            "1. **Class Imbalance Handling:** The AI4I dataset contains only 339 failures out of 10,000 machines (3.39%). "
-            "To prevent the model from trivially predicting nominal status, class weighting (`class_weight='balanced'`) was applied, "
-            "and evaluation prioritizes **PR-AUC** over raw accuracy.\n"
-            "2. **Strict Split Isolation:** Data is partitioned into Train (70%), Validation (15%), and Test (15%) splits. "
-            "Feature scalers and encoders are fitted exclusively on Train. Threshold optimization is performed on Validation. "
-            "The Test set is evaluated strictly once.\n"
-            "3. **Identifier Leakage Prevention:** `UDI` and `Product ID` are dropped before feature transform."
+    with cm_col2:
+        st.markdown("**Default Standard Baseline (τ = 0.50)**")
+        cm_base_df = pd.DataFrame(
+            base_test["confusion_matrix"],
+            index=["Actual Operational (0)", "Actual Failure (1)"],
+            columns=["Predicted Operational (0)", "Predicted Alert (1)"]
         )
+        st.table(cm_base_df)
+        st.caption(f"TP: {base_test['tp']} | FP: {base_test['fp']} | FN: {base_test['fn']} | TN: {base_test['tn']}")
+
+    st.markdown("#### Evaluation Methodology & Governance Compliance")
+    st.markdown(
+        "1. **Validation-Only Threshold Selection:** The alert threshold $\\tau^*$ is selected strictly by sweeping validation predictions "
+        "to minimize operational financial cost. The held-out test split was kept strictly untouched during threshold optimization.\n"
+        "2. **Severe Class Imbalance (3.39%):** Out of 10,000 instances, only 339 are failures. Balanced class weighting was applied, "
+        "and evaluation prioritizes PR-AUC and recall-precision trade-offs rather than uninformative overall accuracy.\n"
+        "3. **Zero Identifier Leakage:** Identifiers `UDI` and `Product ID` are dropped prior to any feature transformation.\n"
+        "4. **Preserved Baseline:** Standard 0.50 baseline metrics are maintained for objective benchmark comparison."
+    )
 
     # Multi-Output Mode Performance
     st.markdown("#### Multi-Output Failure Mode Breakdown (Held-Out Test Set)")

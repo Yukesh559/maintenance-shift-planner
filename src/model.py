@@ -147,6 +147,48 @@ class MaintenanceModelSuite:
             "test_probs": test_probs
         }
 
+    def evaluate_test_split_at_threshold(
+        self,
+        y_test: np.ndarray,
+        test_probs: np.ndarray,
+        selected_threshold: float,
+        baseline_threshold: float = 0.50
+    ) -> Dict[str, Any]:
+        """
+        Computes held-out test evaluation metrics at both the validation-selected threshold
+        and the standard 0.50 baseline threshold without retraining.
+        """
+        pr_auc = float(average_precision_score(y_test, test_probs))
+        roc_auc = float(roc_auc_score(y_test, test_probs))
+
+        def _metrics_for_tau(tau: float) -> Dict[str, Any]:
+            preds = (test_probs >= tau).astype(int)
+            cm = confusion_matrix(y_test, preds, labels=[0, 1]).tolist()
+            rec = float(recall_score(y_test, preds, zero_division=0))
+            prec = float(precision_score(y_test, preds, zero_division=0))
+            f1 = float(f1_score(y_test, preds, zero_division=0))
+            return {
+                "threshold": round(float(tau), 4),
+                "recall": round(rec, 4),
+                "precision": round(prec, 4),
+                "f1": round(f1, 4),
+                "confusion_matrix": cm,
+                "tn": cm[0][0],
+                "fp": cm[0][1],
+                "fn": cm[1][0],
+                "tp": cm[1][1]
+            }
+
+        opt_metrics = _metrics_for_tau(selected_threshold)
+        base_metrics = _metrics_for_tau(baseline_threshold)
+
+        return {
+            "pr_auc": round(pr_auc, 4),
+            "roc_auc": round(roc_auc, 4),
+            "selected_threshold_metrics": opt_metrics,
+            "baseline_threshold_metrics": base_metrics
+        }
+
     def save_artifacts(self):
         """Serializes models, preprocessor, and metrics summary."""
         joblib.dump(self.binary_model, BINARY_MODEL_FILE)

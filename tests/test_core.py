@@ -255,3 +255,49 @@ def test_inference_preprocessing_consistency(model_suite, dataset_splits):
     assert X_proc_with_id.shape == X_proc_no_id.shape
     assert np.allclose(X_proc_with_id, X_proc_no_id)
     assert X_proc_with_id.shape[1] == len(dataset_splits["feature_names"])
+
+
+# 11. Held-Out Test Evaluation at Validation-Selected Threshold & Preserved Baseline 0.50
+def test_held_out_metrics_at_selected_and_baseline_thresholds(model_suite, dataset_splits):
+    suite = model_suite
+    splits = dataset_splits
+    y_test = splits["y_test"]
+    test_probs = suite.binary_model.predict_proba(splits["X_test"])[:, 1]
+    
+    # 1. Verify threshold selection is performed strictly on validation data
+    val_probs = suite.binary_model.predict_proba(splits["X_val"])[:, 1]
+    config = CostConfig(cost_fn=1000.0, cost_fp=100.0, cost_tp=150.0)
+    optimal_tau, _, _, _ = optimize_threshold(splits["y_val"], val_probs, config)
+    assert 0.01 <= optimal_tau <= 0.99
+
+    # 2. Evaluate held-out test split at optimal_tau and baseline 0.50
+    eval_res = suite.evaluate_test_split_at_threshold(
+        y_test,
+        test_probs,
+        selected_threshold=optimal_tau,
+        baseline_threshold=0.50
+    )
+    
+    # Invariant metrics
+    assert eval_res["pr_auc"] > 0.90
+    assert eval_res["roc_auc"] > 0.95
+    
+    # Selected threshold metrics
+    opt_m = eval_res["selected_threshold_metrics"]
+    assert opt_m["threshold"] == optimal_tau
+    assert 0.0 <= opt_m["recall"] <= 1.0
+    assert 0.0 <= opt_m["precision"] <= 1.0
+    assert opt_m["tp"] + opt_m["fn"] == int(y_test.sum())  # Total true test failures = 51
+    assert opt_m["tn"] + opt_m["fp"] == int((y_test == 0).sum())  # Total true test nominal = 1449
+    
+    # Baseline threshold metrics (tau = 0.50) preserved
+    base_m = eval_res["baseline_threshold_metrics"]
+    assert base_m["threshold"] == 0.50
+    assert base_m["recall"] == 0.9412
+    assert base_m["precision"] == 0.6575
+    assert base_m["f1"] == 0.7742
+    assert base_m["fp"] == 25
+    assert base_m["tp"] == 48
+    assert base_m["fn"] == 3
+    assert base_m["tn"] == 1424
+
