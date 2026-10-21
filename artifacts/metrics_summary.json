@@ -1,0 +1,53 @@
+{
+  "dataset_info": {
+    "total_samples": 10000,
+    "train_samples": 7000,
+    "val_samples": 1500,
+    "test_samples": 1500,
+    "synthetic_note": "AI4I 2020 dataset is synthetic (Matzka, 2020). Performance does not guarantee factory deployment without on-site domain transfer."
+  },
+  "held_out_test_metrics": {
+    "pr_auc": 0.9487,
+    "roc_auc": 0.986,
+    "eval_threshold": 0.5,
+    "recall_at_threshold": 0.9412,
+    "precision_at_threshold": 0.6575,
+    "f1_at_threshold": 0.7742,
+    "confusion_matrix": [
+      [
+        1424,
+        25
+      ],
+      [
+        3,
+        48
+      ]
+    ],
+    "tn": 1424,
+    "fp": 25,
+    "fn": 3,
+    "tp": 48
+  },
+  "failure_mode_metrics": {
+    "TWF": {
+      "support": 5,
+      "pr_auc": 0.1952
+    },
+    "HDF": {
+      "support": 21,
+      "pr_auc": 1.0
+    },
+    "PWF": {
+      "support": 11,
+      "pr_auc": 1.0
+    },
+    "OSF": {
+      "support": 15,
+      "pr_auc": 1.0
+    },
+    "RNF": {
+      "support": 1,
+      "pr_auc": 0.0116
+    }
+  }
+}
