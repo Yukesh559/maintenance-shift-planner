@@ -301,3 +301,13 @@ def test_held_out_metrics_at_selected_and_baseline_thresholds(model_suite, datas
     assert base_m["fn"] == 3
     assert base_m["tn"] == 1424
 
+    # 3. Verify standalone module-level function produces identical results
+    from src.model import evaluate_test_split_at_threshold
+    standalone_eval_res = evaluate_test_split_at_threshold(
+        y_test,
+        test_probs,
+        selected_threshold=optimal_tau,
+        baseline_threshold=0.50
+    )
+    assert standalone_eval_res == eval_res
+

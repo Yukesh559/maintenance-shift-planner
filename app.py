@@ -11,7 +11,12 @@ import streamlit as st
 import plotly.graph_objects as go
 
 from src.preprocess import clean_and_split_data, TARGET_MODES, NUMERICAL_COLS, IDENTIFIER_COLS
-from src.model import MaintenanceModelSuite, get_or_train_suite, METRICS_FILE
+from src.model import (
+    MaintenanceModelSuite,
+    get_or_train_suite,
+    evaluate_test_split_at_threshold,
+    METRICS_FILE
+)
 from src.cost_model import CostConfig, sweep_thresholds, optimize_threshold, generate_cost_curve_figure, compute_cost_components
 from src.planner import plan_maintenance_shift
 
@@ -569,7 +574,7 @@ with tabs[3]:
             metrics_summary = json.load(f)
 
     active_tau = float(st.session_state.active_threshold)
-    test_eval = model_suite.evaluate_test_split_at_threshold(
+    test_eval = evaluate_test_split_at_threshold(
         splits["y_test"],
         test_probs,
         selected_threshold=active_tau,

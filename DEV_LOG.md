@@ -110,17 +110,19 @@ This development log tracks genuine chronological milestones, technical decision
 
 ---
 
-### Milestone 9: Evaluation Threshold Alignment & Test Set Verification
-- **Timestamp:** 2026-10-22 02:18 IST
-- **Files Modified:** `src/model.py`, `app.py`, `tests/test_core.py`, `artifacts/metrics_summary.json`, `README.md`
-- **Audit Findings:**
-  - Threshold selection strictly uses validation data (`y_val` and `val_probs`), finding $\tau^* = 0.74$ under default cost model ($C_{FN}=\$1000, C_{FP}=\$100, C_{TP}=\$150$).
-  - However, the Model Evaluation page initially reported only static metrics at baseline threshold $\tau = 0.50$ (Recall 94.12%, Precision 65.75%).
-- **Resolution (Without Unnecessary Retraining):**
-  - Added `evaluate_test_split_at_threshold()` to `src/model.py` to evaluate held-out test predictions at both the validation-selected threshold ($\tau^*$) and the baseline threshold ($\tau = 0.50$).
-  - Updated `app.py` Tab 4 to dynamically compute and display side-by-side held-out test metrics and confusion matrices for both policies.
-  - At $\tau^* = 0.74$: Test False Positives dropped from 25 to 1 (96% reduction in false alarms), Precision jumped from 65.75% to 97.78%, F1 rose from 0.7742 to 0.9167, while maintaining 86.27% recall.
-  - Preserved standard 0.50 baseline metrics side-by-side for transparent benchmark comparison.
-  - Added unit test #11 `test_held_out_metrics_at_selected_and_baseline_thresholds` in `tests/test_core.py`.
-  - All 11 tests passed successfully in 2.61s.
+### Milestone 10: Fix Streamlit Deployment AttributeError on Evaluation Function
+- **Timestamp:** 2026-10-22 02:35 IST
+- **Files Modified:** `src/model.py`, `app.py`, `tests/test_core.py`, `DEV_LOG.md`
+- **Root Cause Analysis:**
+  - `evaluate_test_split_at_threshold` was originally defined only as an instance method inside class `MaintenanceModelSuite`.
+  - In deployed Streamlit environments, `@st.cache_resource` on `load_suite_cached()` retains existing in-memory objects across script re-executions. When the updated `app.py` attempted `model_suite.evaluate_test_split_at_threshold(...)`, any cached instance of the class lacked the attribute, causing an `AttributeError`.
+  - Furthermore, `evaluate_test_split_at_threshold` is a pure evaluation function operating on test arrays (`y_test`, `test_probs`, thresholds) and does not rely on `self` state.
+- **Resolution:**
+  - Defined `evaluate_test_split_at_threshold` as a standalone top-level module function in `src/model.py` and exported it.
+  - Kept a delegated instance method on `MaintenanceModelSuite` for backward compatibility.
+  - Updated `app.py` to import and call `evaluate_test_split_at_threshold` directly, completely decoupling execution from Streamlit resource caching.
+  - Expanded `tests/test_core.py` to test both direct module-level execution and instance method delegation.
+  - Executed local Streamlit smoke test on port 8502 (HTTP 200 OK on both `_stcore/health` and main page).
+  - All 11 automated pytest tests passed in 2.63s.
+
 
